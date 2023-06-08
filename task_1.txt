@@ -1,0 +1,74 @@
+Задача №1
+Имеется база со следующими таблицами:
+CREATE TABLE `users` (
+    `id` INT(11) NOT NULL AUTO_INCREMENT,
+    `name`  VARCHAR(255) DEFAULT NULL,
+    `gender` INT(11) NOT NULL COMMENT '0 - не указан, 1 - мужчина, 2 - женщина.',
+    `birth_date` INT(11) NOT NULL COMMENT 'Дата в unixtime.',
+    PRIMARY KEY (`id`)
+);
+CREATE TABLE `phone_numbers` (
+    `id` INT(11) NOT NULL AUTO_INCREMENT,
+    `user_id` INT(11) NOT NULL,
+    `phone` VARCHAR(255) DEFAULT NULL,
+    PRIMARY KEY (`id`)
+);
+Напишите запрос, возвращающий имя и число указанных телефонных номеров девушек в возрасте от 18 до 22 лет.
+Оптимизируйте таблицы и запрос при необходимости.
+
+==============================
+
+Решение задачи №1
+
+1. Для начала оптимизирую запрос для создания таблицы `users`
+
+    CREATE TABLE `users` (
+        `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'ID пользователя',
+        `name`  VARCHAR(40) NOT NULL DEFAULT '' COMMENT 'Имя пользователя',
+        `gender` TINYINT DEFAULT NULL COMMENT 'NULL - не указан, 1 - мужчина, 2 - женщина.',
+        `birth_date` DATE NOT NULL COMMENT 'Дата рождения без времени',
+        PRIMARY KEY (`id`)
+    );
+
+    Что изменено:
+    - id - Неизвестно какое количество будет пользователей и что за система, было принято решение
+    сделать 8-ми битное хранение, но если приложение будет небольшим, можно ограничиться и 4 битным хранением INT
+    Да и ввиду отсутствия отрицательных значений у ID, использовал UNSIGNED
+    - name - изменил с 255 на 40 символов. В природе редко встретишь имя с 255-ю символами( Если поле name подразумивает
+    хранение ФИО, то можно вернуть 255 симоволов, но лучше сделать отельную котонку )
+    Сделал обязательным, т.к. человек быть безимени.
+    - gender - С полом хотел вначале сделать булево значение, но остановился на TINYINT, вруг ещё гендеров придумают
+    - birth_date - unixtime не подходит для хранения даты рождения, использовал DATE, время не тал использовать,
+    т.к. реальное практическое применение ничтожно мало, но если вдруг понадобится и время рождения,
+    то лучше использовать DATETIME. Сделал обязательным, ну не может человек быть без дня рождения.
+
+2. Оптимизирую вторую таблицу `phone_numbers`
+    CREATE TABLE `phone_numbers` (
+        `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'ID телефонного номера',
+        `user_id` BIGINT UNSIGNED NOT NULL COMMENT 'Внешний ключ ID пользователя',
+        `phone` VARCHAR(10) NOT NULL COMMENT 'Телефонный номер пользователя',
+        PRIMARY KEY (`id`),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    Что изменено:
+        - id - Неизвестно какое количество будет пользователей и что за система, было принято решение
+        сделать 8-ми битное хранение, но если приложение будет небольшим, можно ограничиться и 4 битным хранением INT
+        Да и ввиду отсутствия отрицательных значений у ID, использовал UNSIGNED
+        - user_id - Сделал данную колонку с внешним ключом в таблице `users` для связки один ко многим
+        - phone - Уменьшил до 10 символов и оставил текстовым полем, скорее всего
+        будет осуществляться поиск по номеру телефона и операция бедет дешевле чем с INT.
+        Сделал обязательным, если нет телефона, то теряется весь смысл записи с NULL значением телефона.
+
+3. Запрос
+
+    SELECT
+        u.name, u.birth_date, (SELECT COUNT(*) FROM phone_numbers WHERE user_id = u.id ) AS count_phones
+    FROM
+        users AS u
+    WHERE
+        u.gender = 2
+    AND
+        u.birth_date > Date_Format(CURDATE() - INTERVAL 22 YEAR,'%Y%m%d')
+    AND
+        u.birth_date < Date_Format(CURDATE() - INTERVAL 18 YEAR,'%Y%m%d');
